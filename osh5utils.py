@@ -389,9 +389,15 @@ def __ft_interface(ftfunc, forward, omitlast):
 
 def __shifted_ft_gen(ftfunc, forward, omitlast, ffunc, uafunc):
     def shifted_fft(a, s=None, axes=None, norm=None, **kwargs):
+<<<<<<< HEAD
         shape = s if s is not None else (a.data_attrs['oshape'] if omitlast else a.shape)
+||||||| parent of aec72c2... fix a bug in irfft
+        shape = s if s is not None else a.shape
+=======
+#         shape = s if s is not None else a.shape
+>>>>>>> aec72c2... fix a bug in irfft
         o = __ft_interface(ftfunc, forward=forward, omitlast=omitlast)(a, s=s, axes=axes, norm=norm, **kwargs)
-        uafunc(o, axes, shape, omitlast, ffunc=ffunc)
+        uafunc(o, axes, a.shape, omitlast, ffunc=ffunc)
         return o
     return shifted_fft
 
