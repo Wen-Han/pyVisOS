@@ -8,7 +8,9 @@ import osh5def
 import numpy as np
 import copy
 import re
+import os.path as path
 from functools import wraps, partial, reduce
+from itertools import product
 import warnings
 import osh5io
 import glob
@@ -175,7 +177,8 @@ def stack(arr, axis=0, axesdata=None):
         ax.insert(axis, osh5def.DataAxis(float(arr[0].run_attrs['TIME']),
                                          float(arr[-1].run_attrs['TIME']), len(arr), attrs=taxis_attrs))
     r = np.stack(arr, axis=axis)
-    return osh5def.H5Data(r, md.timestamp, md.data_attrs, md.run_attrs, axes=ax)
+    return osh5def.H5Data(r, md.timestamp, data_attrs=md.data_attrs, run_attrs=md.run_attrs,
+                          axes=ax, runtime_attrs=md.runtime_attrs)
 
 
 def read_and_ndarray(f):
@@ -389,7 +392,7 @@ def __ft_interface(ftfunc, forward, omitlast):
 
 def __shifted_ft_gen(ftfunc, forward, omitlast, ffunc, uafunc):
     def shifted_fft(a, s=None, axes=None, norm=None, **kwargs):
-        shape = s if s is not None else (a.data_attrs['oshape'] if omitlast else a.shape)
+        shape = s if s is not None else (a.runtime_attrs['oshape'] if omitlast else a.shape)
         o = __ft_interface(ftfunc, forward=forward, omitlast=omitlast)(a, s=s, axes=axes, norm=norm, **kwargs)
         uafunc(o, axes, shape, omitlast, ffunc=ffunc)
         return o
@@ -441,7 +444,7 @@ __shifted_irfft = partial(__shifted_ft_gen, forward=False, omitlast=True, ffunc=
 def __save_space_shape(a, s):
     if isinstance(a, osh5def.H5Data):
         shape = s if s is not None else a.shape
-        a.data_attrs.setdefault('oshape', shape)
+        a.runtime_attrs.setdefault('oshape', shape)
 
 
 def __restore_space_shape(xdfunc):
@@ -455,17 +458,17 @@ def __restore_space_shape(xdfunc):
 
 @__restore_space_shape
 def __rss_1d(a, _s, axes):
-    return a.data_attrs['oshape'][-1] if axes is None else a.data_attrs['oshape'][axes]
+    return a.runtime_attrs['oshape'][-1] if axes is None else a.runtime_attrs['oshape'][axes]
 
 
 @__restore_space_shape
 def __rss_2d(a, _s, axes):
-    return a.data_attrs['oshape'][-2:] if axes is None else tuple([a.data_attrs['oshape'][i] for i in axes])
+    return a.runtime_attrs['oshape'][-2:] if axes is None else tuple([a.runtime_attrs['oshape'][i] for i in axes])
 
 
 @__restore_space_shape
 def __rss_nd(a, _s, axes):
-    return a.data_attrs['oshape'] if axes is None else tuple([a.data_attrs['oshape'][i] for i in axes])
+    return a.runtime_attrs['oshape'] if axes is None else tuple([a.runtime_attrs['oshape'][i] for i in axes])
 
 
 @enhence_num_indexing_kw('axes')
@@ -640,7 +643,7 @@ def field_decompose(fldarr, ffted=True, idim=None, finalize=None, outquants=('L'
             # replace numbers in the string
             fld.name = re.sub("\d+", name, fld.name)
 #             fld.data_attrs['NAME'] = re.sub("\d+", name, fld.data_attrs.get('NAME', fld.name))
-            fld.data_attrs['LONG_NAME'] = re.sub("\d+", longname, fld.data_attrs.get('LONG_NAME', ''))
+            fld.label = re.sub("\d+", longname, fld.label)
         return fld
 
     if ffted:
@@ -1039,6 +1042,77 @@ def lineout(h5data, point, slope, variable='x1', linewidth=0, extent_fill=None, 
             tmp.loc[x12b[vardim][0]:x12b[vardim][1]] = r
             r = tmp
     return r
+
+
+# TODO: this list is incomplete, it lacks line/slice diagnostics
+known_fields = product(('', 'ext_', 'part_'), ('e','b'))
+known_fields = tuple(''.join(s) for s in known_fields) + ('j', 's')
+known_fields = product(known_fields, ('1','2','3'), ('', '-savg', '-senv'), ('', '-tavg'))
+known_fields = tuple(''.join(s) for s in known_fields) + ('ene_e', 'ene_b', 'ene_emf', 'div_e', 'div_b', 'chargecons', 'psi')
+
+def meanwhile(h5data, qname, convert=1.0, file_prefix=None, data_dir_prefix='/MS/'):
+    """
+    return the quantity specified by qname in the same simdir and
+      with the same timestamp as the (convert*timestamp) of h5data.
+    :param h5data: h5data object
+    :param qname: a string specifying the data file to read.
+                  For example, 'e1' for '/MS/FLD/e1'.
+                  If h5data is phasespace data, say 'p1x1/eletrons', one can specify part of the data path:
+                  'p2p1' will return 'p2p1/electrons' and 'ions' will return 'p1x1/ions'.
+    :param convert: read the data file with timestamp of (convert*h5data's timestamp)
+    :param file_prefix: a string for the file prefix right before the timestamp, if omitted it will be inferred from qname
+    :param data_dir_prefix: a string specifying where the 'FLD', 'PHA', 'RAW' etc reside
+    :return: an h5Data object
+    """
+    ts = h5data.timestamp
+    ts = str(round(convert*int(ts))).zfill(len(ts))
+    fpath, ext = h5data.runtime_attrs['simdir'] + data_dir_prefix, h5data.runtime_attrs['extension']
+    if '/' in qname:  # user has been very specific, so do exactly as they ask
+        if qname[-1] == '/':
+            qname = qname[:-1]
+        # See if user is asking for a field, if not we assume they want phasespace
+        # TODO: in pricipal we can also try to read RAW data
+        if 'FLD/' not in qname:
+            qname = 'PHA/' + qname
+        fp = qname[4:].replace('/', '-') if file_prefix == None else file_prefix
+        fname = fpath + qname + '/' + fp + '-' + ts + ext
+    elif qname in known_fields:  # it is a physical field
+        fp = qname if file_prefix == None else file_prefix
+        fname = fpath + '/FLD/' + qname + '/' + fp + '-' + ts + ext
+    else:  # looks like it is phasespace data
+        species = path.basename(h5data.runtime_attrs['dirname'])
+        pha = path.basename(path.dirname(h5data.runtime_attrs['dirname']))
+        fpath += '/PHA/'
+        # fuzzy matching the phase space name, false positive and false negative are possible!
+        if qname == 'g' or qname == 'gl':
+            fp = qname + '-' + species if file_prefix == None else file_prefix
+            fname = fpath + qname + '/' + species + '/' + fp + '-' + ts + ext
+        else:
+            index = 2 if qname[0:2] == 'gl' else 0
+            index = 1 if qname[0] == 'g' else 0
+            if qname[index] in 'xpl' and qname[index+1] in '123': # qname is a phase space name
+                fp = qname + '-' + species if file_prefix == None else file_prefix
+                fname = fpath + qname + '/' + species + '/' + fp + '-' + ts + ext
+            else: # qname is a species name
+                fp = pha + '-' + qname if file_prefix == None else file_prefix
+                fname = fpath + pha + '/' + qname + '/' + fp + '-' + ts + ext
+    return osh5io.read_grid(fname)
+
+
+def for_files_in_dir(func):
+    @wraps(func)
+    def _wrapper(*args, **kwargs):
+        if isinstance(args[0], osh5def.H5Data):
+            flist = sorted(glob.glob(args[0].dirname + '/*' + args[0].extension))
+        else:
+            pattern = path.basename(args[0])
+            pattern = args[0] if pattern[0] == '*' else args[0] + '*.*'
+            flist = sorted(glob.glob(pattern))
+        res = [func(osh5io.read_grid(fn), *args[1:], **kwargs) for fn in flist]
+        return res
+
+    return _wrapper
+
 
 
 if __name__ == '__main__':

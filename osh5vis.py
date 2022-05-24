@@ -12,6 +12,8 @@ import numpy as np
 import osh5def
 import subprocess
 import re
+from warnings import warn
+from functools import wraps, partial
 # try:
 #     import osh5gui
 #     gui_fname = osh5gui.gui_fname
@@ -123,22 +125,22 @@ def __osplot1d(func, h5data, xlabel=None, ylabel=None, xlim=None, ylim=None, tit
     return plot_object
 
 
-def osplot1d(h5data, *args, ax=None, **kwpassthrough):
+def osplot1d(h5data, *args, fig=None, ax=None, **kwpassthrough):
     plot = plt.plot if ax is None else ax.plot
     return __osplot1d(plot, h5data, ax=ax, *args, **kwpassthrough)
 
 
-def ossemilogx(h5data, *args, ax=None, **kwpassthrough):
+def ossemilogx(h5data, *args, fig=None, ax=None, **kwpassthrough):
     semilogx = plt.semilogx if ax is None else ax.semilogx
     return __osplot1d(semilogx, h5data, ax=ax, *args, **kwpassthrough)
 
 
-def ossemilogy(h5data, *args, ax=None, **kwpassthrough):
+def ossemilogy(h5data, *args, fig=None, ax=None, **kwpassthrough):
     semilogy = plt.semilogy if ax is None else ax.semilogy
     return __osplot1d(semilogy, h5data, ax=ax, *args, **kwpassthrough)
 
 
-def osloglog(h5data, *args, ax=None, **kwpassthrough):
+def osloglog(h5data, *args, fig=None, ax=None, **kwpassthrough):
     loglog = plt.loglog if ax is None else ax.loglog
     return __osplot1d(loglog, h5data, ax=ax, *args, **kwpassthrough)
 
@@ -285,6 +287,31 @@ def new_fig(h5data, *args, figsize=None, dpi=None, facecolor=None, edgecolor=Non
     osplot(h5data, *args, **kwpassthrough)
     plt.show()
 
+
+def plot_after(func=None, savedir=None, prefix=None, fname=None, savefig_kwargs=None, plot_func=osplot, close_fig=False, **plot_kwargs):
+    if func == None:
+        return partial(plot_after, savedir=savedir, prefix=prefix, fname=fname, savefig_kwargs=savefig_kwargs,
+                       plot_func=plot_func, close_fig=close_fig, **plot_kwargs)
+
+    @wraps(func)
+    def wrapper_func(*args, **kwargs):
+        data = func(*args, **kwargs)
+        f = plt.figure()
+        p = plot_func(data, **plot_kwargs)
+        if savedir != None:
+            savekw = {} if savefig_kwargs == None else savefig_kwargs
+            if fname == None:
+                fn = (data.name.replace(' ', '_') if prefix == None else prefix) + '-' + data.timestamp
+            else:
+                fn = fname
+            plt.savefig(savedir + fn, **savekw)
+        if close_fig:
+            plt.close(fig=f)
+        return data, p
+
+    return wrapper_func
+
+
 def movie( scan_dir, fname, fps=50, fig_size=(50,20), dpi=120 ):
     """
     make a mp4 movie out of a bunch of .png files
@@ -294,6 +321,7 @@ def movie( scan_dir, fname, fps=50, fig_size=(50,20), dpi=120 ):
     :dpi = image resolution
     :fig_size = fig_size
     """
+    warn('Function movie() is deprecated and will be removed in the near future', DeprecationWarning, stacklevel=2)
     f = scan_dir + fname
 
     x = dpi * fig_size[0]
