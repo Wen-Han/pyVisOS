@@ -52,8 +52,36 @@ try:
         data_attrs['UNITS']=OSUnits(info.grid.units)
         return (data, timestamp, data_attrs, run_attrs, axes, __process_filename(fname))
 
+
+    def read_zdf_raw(filename, path=None):
+        """
+        Read particle raw data from hdf5 file
+        Return: the data array and infomations used to create PartData object
+        """
+        fname = filename if not path else path + '/' + filename
+        try:
+            timestamp = fn_rule.findall(os.path.basename(filename))[0]
+        except IndexError:
+            timestamp = '000000'
+        data, info = zdf.read(filename)
+        # read in meta data
+        d = info.particles.__dict__
+        d['QUANTS'] = d.pop('quants')
+        tmp = d.pop('qunits')
+        d['UNITS'] = [tmp[q] for q in d['QUANTS']]
+        tmp = d.pop('qlabels')
+        d['LABELS'] = [tmp[q] for q in d['QUANTS']]
+        #TODO: TIMESTAMP is not set in HDF5 file as of now (Aug 2019) so we make one up, check back when file format changes
+        d['TIMESTAMP'] = timestamp
+
+        return data, d['QUANTS'], d
+
+
 except ImportError:
-    def open_zdf_and_extract_data(_):
+    def open_zdf_and_extract_data(*args, **kwargs):
+        raise NotImplementedError('Cannot import zdf reader, zdf format not supported')
+
+    def read_zdf_raw(*args, **kwargs):
         raise NotImplementedError('Cannot import zdf reader, zdf format not supported')
 
 
@@ -136,23 +164,15 @@ def open_h5_and_extract_data(filename, path=None, axis_name="AXIS/AXIS"):
         data_attrs['NAME'] = name
 
         # data_bundle.data = the_data_hdf_object[()]
-        data_bundle.append( (the_data_hdf_object, timestamp, data_attrs, run_attrs, axes, __process_filename(fname)) )
+        data_bundle.append( (the_data_hdf_object[()], timestamp, data_attrs, run_attrs, axes, __process_filename(fname)) )
     data_file.close()
     return data_bundle
 
 
-def read_raw(filename, path=None):
+def read_h5_raw(filename, path=None):
     """
-    Read particle raw data into a numpy sturctured array.
-    See numpy documents for detailed usage examples of the structured array.
-    The only modification is that the meta data of the particles are stored in .attrs attributes.
-
-    Usage:
-            part = read_raw("raw-electron-000000.h5")   # part is a subclass of numpy.ndarray with extra attributes
-
-            print(part.shape)                           # should be a 1D array with # of particles
-            print(part.attrs)                           # print all the meta data
-            print(part.attrs['TIME'])                   # prints the simulation time associated with the hdf5 file
+    Read particle raw data from hdf5 file
+    Return: the data array and infomations used to create PartData object
     """
     fname = filename if not path else path + '/' + filename
     try:
@@ -179,12 +199,12 @@ def read_raw(filename, path=None):
         #TODO: TIMESTAMP is not set in HDF5 file as of now (Aug 2019) so we make one up, check back when file format changes
         d['TIMESTAMP'] = timestamp
 
-        dtype = [(q, data[q].dtype) for q in quants]
-        r = PartData(data[dtype[0][0]].shape, dtype=dtype, attrs=d)
-        for dt in dtype:
-            r[dt[0]] = data[dt[0]]
+        # dtype = [(q, data[q].dtype) for q in quants]
+        # r = PartData(data[dtype[0][0]].shape, dtype=dtype, attrs=d)
+        # for dt in dtype:
+        #     r[dt[0]] = data[dt[0]]
 
-    return r
+    return data, quants, d
 
 
 def open_openpmd_and_extract_data(filename, path=None):
@@ -337,7 +357,7 @@ def scan_hdf5_file_for_main_data_array(h5file):
     return res
 
 
-def write_h5(data, filename=None, path=None, dataset_name=None, overwrite=True, axis_name=None):
+def write_h5(data_object, filename=None, path=None, dataset_name=None, overwrite=True, axis_name=None):
     """
     Usage:
         write(diag_data, '/path/to/filename.h5')    # writes out Visxd compatible HDF5 data.

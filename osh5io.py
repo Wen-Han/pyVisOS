@@ -160,6 +160,40 @@ def write_h5_openpmd(data, filename=None, path=None, dataset_name=None, overwrit
                                     overwrite=overwrite, axis_name=axis_name,
                                     time_to_si=time_to_si, length_to_si=length_to_si, data_to_si=data_to_si )
 
+def read_raw(filename, path=None):
+    """
+    Read particle raw data into a numpy sturctured array.
+    See numpy documents for detailed usage examples of the structured array.
+    The only modification is that the meta data of the particles are stored in .attrs attributes.
+
+    Usage:
+            part = read_raw("raw-electron-000000.h5")   # part is a subclass of numpy.ndarray with extra attributes
+
+            print(part.shape)                           # should be a 1D array with # of particles
+            print(part.attrs)                           # print all the meta data
+            print(part.attrs['TIME'])                   # prints the simulation time associated with the hdf5 file
+    """
+    ext = basename(filename).split(sep='.')[-1]
+
+    if ext == 'h5':
+        data, quants, attrs = osh5io_backend.read_h5_raw(filename, path=path, axis_name=axis_name)
+    elif ext == 'zdf':
+        data, quants, attrs = osh5io_backend.read_zdf_raw(filename, path=path)
+    else:
+        # the file extension may not be specified, trying all supported formats
+        try:
+            data, quants, attrs = osh5io_backend.read_h5_raw(filename+'.h5', path=path, axis_name=axis_name)
+        except OSError:
+            data, quants, attrs = osh5io_backend.read_zdf_raw(filename+'.zdf', path=path)
+
+    dtype = [(q, data[q].dtype) for q in quants]
+    r = PartData(data[dtype[0][0]].shape, dtype=dtype, attrs=attrs)
+    for dt in dtype:
+        r[dt[0]] = data[dt[0]]
+
+    return r
+
+
 if __name__ == '__main__':
     import osh5utils as ut
     a = np.arange(6.0).reshape(2, 3)
