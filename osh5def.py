@@ -475,7 +475,7 @@ class H5Data(np.ndarray):
         :param new: if true return a new array instead of a view
         """
         warnings.warn(".subrange will be removed from future version. "
-                      "Please use .loc or .sel instead (They are also more intuitive)", DeprecationWarning)
+                      "Please use .loc or .sel instead (They are also more intuitive)", DeprecationWarning, stacklevel=2)
         if not bound:  # None or empty list/tuple or 0
             return self
         if H5Data.__check_bound_depth(bound) == 1:
@@ -653,9 +653,20 @@ class PartData(np.ndarray):
             return tuple(self.attrs[attr_name])
 
     def label(self, quant=None):
-        return self.__find_attrs_by_named_id('LABELS', quant)
+        warnings.warn(".label will return the label of the species in the future. Use .label_of to return the label of quantities",
+                      DeprecationWarning, stacklevel=2)
+        return self.label_of(quant=quant)
 
     def units(self, quant=None):
+        warnings.warn(".units will remove or change behavior in the future. Use .units_of to return the units of quantities",
+                      DeprecationWarning, stacklevel=2)
+        return self.units_of(quant=quant)
+
+
+    def label_of(self, quant=None):
+        return self.__find_attrs_by_named_id('LABELS', quant)
+
+    def units_of(self, quant=None):
         return self.__find_attrs_by_named_id('UNITS', quant)
 
     @property
