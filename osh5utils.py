@@ -15,6 +15,7 @@ import osh5io
 import glob
 from scipy import signal
 from scipy import ndimage
+from sys import modules
 # use pyFFTW for fft if available
 try:
     import pyfftw.interfaces.numpy_fft as fftmod
@@ -1046,20 +1047,41 @@ def lineout(h5data, point, slope, variable='x1', linewidth=0, extent_fill=None, 
     return r
 
 
-def for_files_in_dir(func):
-    @wraps(func)
-    def _wrapper(*args, **kwargs):
-        if isinstance(args[0], osh5def.H5Data):
-            flist = sorted(glob.glob(args[0].dirname + '/*' + args[0].extension))
-        else:
-            pattern = path.basename(args[0])
-            pattern = args[0] if pattern[0] == '*' else args[0] + '*.*'
-            flist = sorted(glob.glob(pattern))
-        res = [func(osh5io.read_grid(fn), *args[1:], **kwargs) for fn in flist]
-        return res
+def for_files_in_dir(func=None, nthreads=1, reader=osh5io.read_grid, dirname=None, extension=None):
+    if extension is None:
+        extension = '.*'
+    def parallel_data_deco(_func):
+        @wraps(_func)
+        def _wrapper(*args, **kwargs):
+            if dirname is None:
+                if isinstance(args[0], osh5def.H5Data):
+                    flist = sorted(glob.glob(args[0].dirname + '/*' + args[0].extension))
+                else:
+                    pattern = path.basename(args[0])
+                    pattern = args[0] if pattern[0] == '*' else args[0] + '*' + extension
+                    flist = sorted(glob.glob(pattern))
+            else:
+                flist = sorted(glob.glob(dirname + '/*'))
+            if nthreads > 1:
+                def f(fname, *args, **kwargs):
+                    return _func(reader(fname), *args, **kwargs)
+#                 f = partial(_func, **kwargs)
+                # Hacking my way around the problem of pickling local function f
+                # There could be many limitations to this hack. For example, if one try to parallelize
+                # two homonymous functions in two different modules, this would likely fail
+                with Pool(nthreads, initializer=lambda _f, _fn: setattr(modules['__main__'], _fn, _f),
+                          initargs=[f, _func.__name__]) as p:
+                    return p.starmap( getattr(modules['__main__'], _func.__name__),
+                                     [(fn,*args[1:]) for fn in flist] )
+            else:
+                return [_func(reader(fn), *args[1:], **kwargs) for fn in flist]
 
-    return _wrapper
+        return _wrapper
 
+    if func is None:
+        return parallel_data_deco
+    else:
+        return parallel_data_deco(func)
 
 
 if __name__ == '__main__':
