@@ -398,6 +398,11 @@ def write_h5(data_object, filename=None, path=None, dataset_name=None, overwrite
         # now put the data in a group called this...
         h5dataset = h5file.create_dataset(current_name_attr, data_object.shape, data=data_object.view(np.ndarray))
 
+        time, units = data_object.runtime_attrs.get('t', (None, None))
+        if time is not None:
+            run_attrs['TIME'] = [time]
+        if units is not None:
+            run_attrs['TIME UNITS'] = units
         # these are required so we make defaults..
         h5file.attrs['ITER'] = [0]
         h5file.attrs['TIME'] = [0.0]
@@ -506,6 +511,11 @@ def write_h5_openpmd(data, filename=None, path=None, dataset_name=None, overwrit
  #       h5dataset.attrs['UNITS'], h5dataset.attrs['LONG_NAME'] = np.array([b'']), np.array([b''])
         # convert osunit class back to ascii
         data_attrs = data_object.data_attrs.copy()
+        time, units = data_object.runtime_attrs.get('t', (None, None))
+        if time is not None:
+            run_attrs['TIME'] = [time]
+        if units is not None:
+            run_attrs['TIME UNITS'] = units
         try:
             data_attrs['UNITS'] = np.array([str(data_object.data_attrs['UNITS']).encode('utf-8')])
         except:
