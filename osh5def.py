@@ -15,6 +15,7 @@ from itertools import product
 from osh5io_backend import open_zdf_and_extract_data, open_h5_and_extract_data
 import warnings
 from osh5def_auxil import fn_rule, DataAxis, OSUnits
+from os import  path
 try:
     import xarray as xr
     _has_xarray_support = True

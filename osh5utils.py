@@ -8,7 +8,7 @@ import osh5def
 import numpy as np
 import copy
 import re
-import os.path as path
+from os import path
 from functools import wraps, partial, reduce
 import warnings
 import osh5io
