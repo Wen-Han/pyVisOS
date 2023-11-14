@@ -291,7 +291,7 @@ def new_fig(h5data, *args, figsize=None, dpi=None, facecolor=None, edgecolor=Non
 
 
 def plot_after(func=None, savedir=None, prefix=None, fname=None, savefig_kwargs=None, plot_func=osplot, close_fig=False, **plot_kwargs):
-    if func == None:
+    if func is None:
         return partial(plot_after, savedir=savedir, prefix=prefix, fname=fname, savefig_kwargs=savefig_kwargs,
                        plot_func=plot_func, close_fig=close_fig, **plot_kwargs)
 
