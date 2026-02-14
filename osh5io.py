@@ -256,7 +256,7 @@ def read_raw(filename, path=None):
             print(part.attrs)                           # print all the meta data
             print(part.attrs['TIME'])                   # prints the simulation time associated with the hdf5 file
     """
-    ext = basename(filename).split(sep='.')[-1]
+    ext = os.path.basename(filename).split(sep='.')[-1]
 
     if ext == 'h5':
         data, quants, attrs = read_h5_raw(filename, path=path)

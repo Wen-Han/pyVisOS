@@ -142,7 +142,7 @@ class DataAxis:
             if self.attrs['UNITS'].is_time():
                 return wavelength * 5.31e-4, 'ps'
             if self.attrs['UNITS'].is_length():
-                return wavelength / (2 * np.pi), '\mu m'
+                return wavelength / (2 * np.pi), r'\mu m'
             if self.attrs['UNITS'].is_density():
                 return density, 'cm^{-3}'
         except AttributeError:  # self.attrs['UNITS'] is str?
@@ -151,8 +151,8 @@ class DataAxis:
 
 
 class OSUnits:
-    name = ('m_e', 'c', '\omega', 'e', 'n_0')
-    disp_name = ['m_e', 'c', '\omega_p', 'e', 'n_0', 'a.u.']
+    name = ('m_e', 'c', r'\omega', 'e', 'n_0')
+    disp_name = ['m_e', 'c', r'\omega_p', 'e', 'n_0', 'a.u.']
     xtrnum = re.compile(r"(?<=\^)\d+|(?<=\^{).*?(?=})")
 
     def __init__(self, s):
@@ -182,7 +182,7 @@ class OSUnits:
                             else:
                                 self.power[p] = frac(1, 1) if nominator else frac(-1, 1)
                             break
-                        elif ss in ['1', '2', '\pi', '2\pi']:
+                        elif ss in ['1', '2', r'\pi', r'2\pi']:
                             break
                     else:
                         raise ValueError('Unknown unit: ' + re.findall(r'\w+', ss)[0])
@@ -392,7 +392,7 @@ class H5Data(np.ndarray):
             return str(self.values)
         else:
             return ''.join([self.name, '-', self.timestamp, ', shape: ', str(self.shape), ', time:',
-                            str(self.run_attrs['TIME']), ' [', str(self.run_attrs['TIME UNITS']), ']\naxis:\n  ',
+                            str(self.run_attrs.get('TIME')), ' [', str(self.run_attrs.get('TIME UNITS')), ']\naxis:\n ',
                             '\n  '.join([str(ax) for ax in self.axes]) if len(self.axes) else 'None'])
 
     def __repr__(self):
