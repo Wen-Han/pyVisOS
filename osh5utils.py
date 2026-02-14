@@ -171,9 +171,9 @@ def stack(arr, axis=0, axesdata=None):
             raise ValueError('Number of points in axesdata is different from the new dimension to be created')
         ax.insert(axis, axesdata)
     else:  # we assume the new dimension is time
-        taxis_attrs = {'UNITS': "\omega_p^{-1}", 'LONG_NAME': "time", 'NAME': "t"}
-        ax.insert(axis, osh5def.DataAxis(float(arr[0].run_attrs['TIME']),
-                                         float(arr[-1].run_attrs['TIME']), len(arr), attrs=taxis_attrs))
+        taxis_attrs = {'UNITS': r"\omega_p^{-1}", 'LONG_NAME': "time", 'NAME': "t"}
+        ax.insert(axis, osh5def.DataAxis(arr[0].run_attrs['TIME'].item(),
+                                         arr[-1].run_attrs['TIME'].item(), len(arr), attrs=taxis_attrs))
     r = np.stack(arr, axis=axis)
     return osh5def.H5Data(r, md.timestamp, data_attrs=md.data_attrs, run_attrs=md.run_attrs,
                           axes=ax, runtime_attrs=md.runtime_attrs)
@@ -314,7 +314,7 @@ def __try_update_axes(updfunc):
 def __update_axes_label(axes, i):
     try:
         if axes[i].attrs['NAME'] == 't' or axes[i].attrs['LONG_NAME'] == 'time' or axes[i].attrs['UNITS'].is_time():
-            axes[i].attrs['LONG_NAME'], axes[i].attrs['NAME'] = '\omega', 'w'
+            axes[i].attrs['LONG_NAME'], axes[i].attrs['NAME'] = r'\omega', 'w'
         else:
             axes[i].attrs['LONG_NAME'] = 'K(' + axes[i].attrs['LONG_NAME'] + ')'
             axes[i].attrs['NAME'] = 'k' + axes[i].attrs['NAME']
@@ -354,7 +354,7 @@ def _update_ifft_axes(axes, idx, shape, _unused, ffunc):
                 warned = True
         axes[i].ax = ffunc(shape[i], d=axes[i].increment, min=xmin)
         try:
-            if axes[i].attrs['LONG_NAME'] == '\omega' or axes[i].attrs['UNITS'].is_frequency():
+            if axes[i].attrs['LONG_NAME'] == r'\omega' or axes[i].attrs['UNITS'].is_frequency():
                 axes[i].attrs['LONG_NAME'], axes[i].attrs['NAME'] = 'time', 't'
             else:
                 axes[i].attrs['LONG_NAME'] = axes[i].attrs['LONG_NAME'][2:-1]
@@ -645,9 +645,9 @@ def field_decompose(fldarr, ffted=True, idim=None, finalize=None, outquants=('L'
     def rename(fld, name, longname):
         if isinstance(fld, osh5def.H5Data):
             # replace numbers in the string
-            fld.name = re.sub("\d+", name, fld.name)
+            fld.name = re.sub(r"\d+", name, fld.name)
 #             fld.data_attrs['NAME'] = re.sub("\d+", name, fld.data_attrs.get('NAME', fld.name))
-            fld.label = re.sub("\d+", longname, fld.label)
+            fld.label = re.sub(r"\d+", longname, fld.label)
         return fld
 
     if ffted:
