@@ -541,7 +541,7 @@ class H5Data(np.ndarray):
             del v.axes[i]
         return v
 
-    def __array_wrap__(self, out, context=None):
+    def __array_wrap__(self, out, context=None, return_scalar=False):
         """Here we handle the unit attribute
         We do not check the legitimacy of ufunc operating on certain unit. We hard code a few unit changing
         rules according to what ufunc is called
@@ -567,7 +567,7 @@ class H5Data(np.ndarray):
                     out.data_attrs['UNITS'] = context[1][0].data_attrs['UNITS'] * context[1][1].data_attrs['UNITS']
             except (AttributeError, KeyError):  # .data_attrs['UNITS'] failed
                 pass
-        return np.ndarray.__array_wrap__(self, out, context)
+        return np.ndarray.__array_wrap__(self, out, context, return_scalar=return_scalar)
 
     @staticmethod
     def get_index_slice(ax, bd):
